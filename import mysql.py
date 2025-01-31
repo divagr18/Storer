@@ -2,13 +2,14 @@ import mysql.connector
 
 conn = mysql.connector.connect(
     host="localhost",
-    user="root",
-    password="1234" ,
+    user="keshav",
+    password="keshav1234" ,
     database = 'storer',
     port = 3308
 )
 
 cursor = conn.cursor()
+
 
 # Test connection by fetching some data from Products table
 cursor.execute("""

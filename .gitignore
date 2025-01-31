@@ -1,1 +1,68 @@
 tempCodeRunnerFile.python
+inventory_backend/.env
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Django files
+db.sqlite3
+*.log
+media/
+staticfiles/
+
+# Environment variables and settings
+.env
+
+# Virtual environments
+venv/
+.env/
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Node.js
+node_modules/
+npm-debug.log*
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# JetBrains
+*.iml
+.idea/
+out/
+
+# Migrations (optional; keep if committing them manually)
+**/migrations/*.py[cod]
+**/migrations/__pycache__/
+
+# Compiled CSS and JS
+*.min.css
+*.min.js
+*.map
+
+# Build and cache files
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Coverage and testing
+.coverage
+coverage.xml
+*.cover
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
