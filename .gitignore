@@ -66,3 +66,5 @@ coverage.xml
 
 # Jupyter Notebook
 .ipynb_checkpoints/
+inventory_backend/requirements.txt
+flutter/
