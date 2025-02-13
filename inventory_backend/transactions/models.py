@@ -19,6 +19,10 @@ class Transaction(models.Model):
     supplier = models.ForeignKey(Supplier, on_delete=models.SET_NULL, blank=True, null=True, default=None)
     transaction_id = models.CharField(max_length=50, unique=True, blank=True, null=True, default="")
 
+    weather_condition = models.CharField(max_length=50, blank=True, null=True, help_text="Weather condition on transaction date")
+    is_holiday = models.BooleanField(default=False, help_text="Is the transaction date a holiday?")
+    is_promotion = models.BooleanField(default=False, help_text="Was there a promotion on the transaction date?")
+
     def __str__(self):
         return f"{self.transaction_type} - {self.product.name}"
 

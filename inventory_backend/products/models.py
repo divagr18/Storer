@@ -8,6 +8,7 @@ class Product(models.Model):
     category = models.CharField(max_length=50, blank=True, null=True, default="") # Provide an empty string
     created_at = models.DateTimeField(auto_now_add=True) # Auto-generated, no default needed
     sku = models.CharField(max_length=50, unique=True) #  NOT NULL
+    min_stock_level = models.IntegerField(default=0, null=False) # Changed to null=False
     cost_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00) # set a default of 0
     unit = models.CharField(max_length=20, default="unit")
     reorder_point = models.IntegerField(default=10)
