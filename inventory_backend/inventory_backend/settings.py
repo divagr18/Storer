@@ -158,3 +158,24 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'products.views': { # Logger for your products.views module
+            'handlers': ['console'],
+            'level': 'INFO', # Or 'DEBUG' for more detailed logging during debugging
+            'propagate': True,
+        },
+        'products.forecast': { # Logger for your products.forecast module (optional, if you want to log from forecast.py as well)
+            'handlers': ['console'],
+            'level': 'INFO', # Or 'DEBUG'
+            'propagate': True,
+        },
+    },
+}

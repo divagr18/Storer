@@ -7,7 +7,7 @@ from suppliers.views import SupplierViewSet
 from users.views import UserViewSet
 from inventory_logs.views import InventoryViewSet
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-
+from products.views import get_demand_forecast, get_arima_demand_forecast, get_prophet_backtesting, get_arima_backtesting
 # Initialize the router for REST API routes
 router = routers.DefaultRouter()
 
@@ -29,4 +29,8 @@ urlpatterns = [
     # JWT authentication routes
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/products/<str:product_sku>/forecast/prophet/<int:horizon>/', get_demand_forecast, name='product_forecast'), # Prophet endpoint -  URL updated to be more descriptive # URL updated
+    path('api/products/<str:product_sku>/forecast/arima/<int:horizon>/', get_arima_demand_forecast, name='product_arima_forecast'), # New ARIMA endpoint # New ARIMA endpoint
+    path('api/products/<str:product_sku>/backtest/prophet/<int:validation_horizon>/', get_prophet_backtesting, name='product_prophet_backtest'),
+    path('api/products/<str:product_sku>/backtest/arima/<int:validation_horizon>/', get_arima_backtesting, name='product_arima_backtest'),
 ]

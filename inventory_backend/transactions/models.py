@@ -11,7 +11,7 @@ class Transaction(models.Model):
     product = models.ForeignKey('products.Product', on_delete=models.CASCADE) # No default
     transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPES) # No default
     quantity = models.IntegerField() # No default
-    transaction_date = models.DateTimeField(auto_now_add=True) # No default
+    transaction_date = models.DateTimeField() # No default
 
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00) # Set a default of 0
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, default=0.00) # Provide a default
