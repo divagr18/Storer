@@ -1,10 +1,10 @@
 from django.shortcuts import render
 
-
+from rest_framework import status
 from rest_framework import viewsets
 from .models import Product
 from .serializers import ProductSerializer
-
+from django.db.models import Sum, Count
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
@@ -27,29 +27,38 @@ def get_demand_forecast(request, product_sku, horizon):
     try:
         product = Product.objects.get(sku=product_sku)
     except Product.DoesNotExist:
-        return Response({"error": "Product not found."}, status=404)
+        return Response({"error": "Product not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    queryset = Transaction.objects.filter(product__sku=product_sku).order_by('transaction_date')
-    transactions = list(queryset.values('transaction_date', 'quantity'))
-    for transaction in transactions:
-        if transaction['transaction_date']:
-            transaction['transaction_date'] = transaction['transaction_date'].replace(tzinfo=None)
-    df = pd.DataFrame(transactions)
-    if df.empty:
-        return Response({"error": "No historical transaction data found for this product."}, status=404)
+    try:  # Wrap the database and data processing logic in a try block
+        queryset = Transaction.objects.filter(product__sku=product_sku).order_by('transaction_date')
+        transactions = list(queryset.values('transaction_date', 'quantity'))
 
-    try:
-        forecast = forecast_demand_prophet(product_sku, df, horizon) # Calling Prophet function
+        # Ensure timezone-naive datetimes for Prophet
+        for transaction in transactions:
+            if transaction['transaction_date']:
+                transaction['transaction_date'] = transaction['transaction_date'].replace(tzinfo=None)
 
-        forecast_list = forecast.to_dict('records')
+        df = pd.DataFrame(transactions)
+
+        if df.empty:
+            return Response({"error": "No historical transaction data found for this product."}, status=status.HTTP_404_NOT_FOUND)
+
+        forecast = forecast_demand_prophet(product_sku, df, horizon)  # Calling Prophet function
+
+        # Check if the forecast is empty or if the data is not a DataFrame
+        if not forecast:  # Checks for an empty list, indicating that the forecast function failed
+            return Response({"error": "Forecast is empty due to an error during prediction."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
         product_details = {
             "name": product.name,
             "description": product.description,
         }
-        return Response({"product_details": product_details, "forecast": forecast_list})
 
-    except Exception as e:
-        return Response({"error": f"Prophet forecasting failed: {str(e)}"}, status=500)
+        return Response({"product_details": product_details, "forecast": forecast}, status=status.HTTP_200_OK) # no .to_dict() needed
+
+    except Exception as e:  # Catch any unexpected errors
+        logger.exception("An unexpected error occurred during the forecasting process.", exc_info=True)  # Log the full traceback
+        return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 @api_view(['GET'])
 def get_arima_demand_forecast(request, product_sku, horizon, arima_order_str=None):
     """
@@ -103,49 +112,60 @@ def get_arima_demand_forecast(request, product_sku, horizon, arima_order_str=Non
         logger.error(f"ARIMA forecasting failed for SKU {product_sku}, order: {arima_order}. Error: {e}", exc_info=True) # Log full exception # Log full exception
         return Response({"error": f"ARIMA forecasting failed: {str(e)}"}, status=500)
 @api_view(['GET'])
-def get_prophet_backtesting(request, product_sku, validation_horizon): # New backtesting API view # New backtesting API view
+def get_prophet_backtesting(request, product_sku, validation_horizon):
     """
     API endpoint to perform backtesting for Prophet demand forecast and retrieve evaluation metrics.
     """
     try:
         product = Product.objects.get(sku=product_sku)
     except Product.DoesNotExist:
-        return Response({"error": "Product not found."}, status=404)
+        return Response({"error": "Product not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    queryset = Transaction.objects.filter(product__sku=product_sku).order_by('transaction_date')
-    transactions = list(queryset.values('transaction_date', 'quantity'))
-    for transaction in transactions:
-        if transaction['transaction_date']:
-            transaction['transaction_date'] = transaction['transaction_date'].replace(tzinfo=None)
-    df = pd.DataFrame(transactions)
-    if df.empty:
-        return Response({"error": "No historical transaction data found for this product."}, status=404)
+    try:  # Wrap the database and data processing logic in a try block
+        queryset = Transaction.objects.filter(product__sku=product_sku).order_by('transaction_date')
+        transactions = list(queryset.values('transaction_date', 'quantity'))
 
-    try:
-        validation_horizon_int = int(validation_horizon) # Convert horizon to integer
+        # Ensure timezone-naive datetimes for Prophet
+        for transaction in transactions:
+            if transaction['transaction_date']:
+                transaction['transaction_date'] = transaction['transaction_date'].replace(tzinfo=None)
 
-        if validation_horizon_int <= 0: # Validate horizon
-            return Response({"error": "Validation horizon must be a positive integer."}, status=400)
+        df = pd.DataFrame(transactions)
 
-        backtest_results = backtest_prophet_forecast(product_sku, df, validation_horizon_int) # Call backtesting function # Call backtesting function
+        if df.empty:
+            return Response({"error": "No historical transaction data found for this product."}, status=status.HTTP_404_NOT_FOUND)
 
-        if "error" in backtest_results: # Check for errors from backtesting
-            return Response({"error": backtest_results["error"]}, status=400) # Return backtesting error to client # Return backtesting error
+        try:
+            validation_horizon_int = int(validation_horizon)  # Convert horizon to integer
 
-        metrics = backtest_results["metrics"] # Extract metrics from results
-        forecast_list = backtest_results["forecast"] # Extract forecast from results
+            if validation_horizon_int <= 0:  # Validate horizon
+                return Response({"error": "Validation horizon must be a positive integer."},
+                                status=status.HTTP_400_BAD_REQUEST)
 
-        product_details = {
-            "name": product.name,
-            "description": product.description,
-        }
-        return Response({"product_details": product_details, "metrics": metrics, "forecast": forecast_list}) # Include metrics in API response # Include metrics in response
+            backtest_results = backtest_prophet_forecast(product_sku, df.copy(), validation_horizon_int)  # Call backtesting function # Pass a COPY
 
-    except ValueError: # Handle invalid horizon input
-        return Response({"error": "Invalid validation_horizon. Must be an integer."}, status=400)
+            if "error" in backtest_results:  # Check for errors from backtesting
+                return Response({"error": backtest_results["error"]}, status=status.HTTP_400_BAD_REQUEST)  # Return backtesting error to client # Return backtesting error
+
+            metrics = backtest_results["metrics"]  # Extract metrics from results
+            forecast_list = backtest_results["forecast"]  # Extract forecast from results
+
+            product_details = {
+                "name": product.name,
+                "description": product.description,
+            }
+            return Response({"product_details": product_details, "metrics": metrics, "forecast": forecast_list},
+                            status=status.HTTP_200_OK)  # Include metrics in API response # Include metrics in response
+
+        except ValueError:  # Handle invalid horizon input
+            return Response({"error": "Invalid validation_horizon. Must be an integer."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
     except Exception as e:
-        logger.error(f"Prophet backtesting API error for SKU {product_sku}, horizon: {validation_horizon}. Error: {e}", exc_info=True) # Log full exception
-        return Response({"error": f"Prophet backtesting failed: {str(e)}"}, status=500)
+        logger.exception(f"Prophet backtesting API error for SKU {product_sku}, horizon: {validation_horizon}. "
+                         f"Error: {e}", exc_info=True)  # Log full exception
+
+        return Response({"error": f"Prophet backtesting failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
@@ -210,3 +230,50 @@ def get_arima_backtesting(request, product_sku, validation_horizon, arima_order_
     except Exception as e:
         logger.error(f"ARIMA backtesting API error for SKU {product_sku}, horizon: {validation_horizon}, order: {arima_order}. Error: {e}", exc_info=True)
         return Response({"error": f"ARIMA backtesting failed: {str(e)}"}, status=500)
+    
+    
+@api_view(['GET'])
+def get_dashboard_metrics(request, product_sku=None): # Make product_sku optional
+    """
+    API endpoint to retrieve dashboard metrics (Total Sales, Total Profit, Total Transactions, Total Products),
+    optionally filtered by product SKU.
+    """
+    try:
+        # Base queryset for transactions
+        transaction_queryset = Transaction.objects.filter(transaction_type='sale')
+
+        # Apply product SKU filter if provided
+        if product_sku:
+            try:
+                product = Product.objects.get(sku=product_sku)
+            except Product.DoesNotExist:
+                return Response({"error": "Product not found."}, status=404)
+            transaction_queryset = transaction_queryset.filter(product=product)
+
+        # Calculate Total Sales
+        total_sales = transaction_queryset.aggregate(total=Sum('total_amount'))['total'] or 0
+
+        # Calculate Total Profit (Assuming cost_price is stored on Product)
+        total_revenue = transaction_queryset.aggregate(total=Sum('total_amount'))['total'] or 0
+        total_cost = Transaction.objects.filter(transaction_type='purchase').aggregate(total=Sum('total_amount'))['total'] or 0
+        total_profit = total_revenue - total_cost
+
+        # Calculate Total Transactions (Orders)
+        total_transactions = transaction_queryset.count()
+
+        # Calculate Total Products
+        total_products = Product.objects.count()
+
+        # Construct the response
+        metrics = {
+            "total_sales": total_sales,
+            "total_profit": total_profit,
+            "total_transactions": total_transactions,
+            "total_products": total_products,
+        }
+
+        return Response(metrics) # Return the metrics in a JSON response
+
+    except Exception as e:
+        logger.error(f"Error calculating dashboard metrics: {e}", exc_info=True)
+        return Response({"error": f"Failed to calculate dashboard metrics: {str(e)}"}, status=500)
