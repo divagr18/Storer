@@ -8,7 +8,8 @@ from django.db.models import Sum, Count
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
-
+from django.db.models.functions import TruncMonth # Import TruncMonth
+from django.db import models
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from products.models import Product
@@ -277,3 +278,39 @@ def get_dashboard_metrics(request, product_sku=None): # Make product_sku optiona
     except Exception as e:
         logger.error(f"Error calculating dashboard metrics: {e}", exc_info=True)
         return Response({"error": f"Failed to calculate dashboard metrics: {str(e)}"}, status=500)
+    
+@api_view(['GET'])
+def get_sales_profit_trend(request, product_sku=None):
+    """
+    API endpoint to retrieve sales and profit trend data (monthly) for a product.
+    """
+    try:
+        # Base queryset for transactions (sales only)
+        transaction_queryset = Transaction.objects.filter(transaction_type='sale')
+        purchase_queryset = Transaction.objects.filter(transaction_type='purchase') # New purchase queryset
+
+        # Apply product SKU filter if provided
+        if product_sku:
+            try:
+                product = Product.objects.get(sku=product_sku)
+            except Product.DoesNotExist:
+                return Response({"error": "Product not found."}, status=404)
+            transaction_queryset = transaction_queryset.filter(product=product)
+            purchase_queryset = purchase_queryset.filter(product=product) # Filter purchase queryset too # Filter purchase queryset too
+
+        # Aggregate sales and profit by month
+        sales_profit_data = transaction_queryset.annotate(month=TruncMonth('transaction_date')).values('month').annotate(
+            total_sales=Sum('total_amount'),
+            total_profit=Sum(models.F('total_amount') - models.F('unit_price') * models.F('quantity')) #total_amount is the sales price, and cost price is the cost price
+        ).order_by('month')
+
+        total_cost = purchase_queryset.aggregate(total=Sum('total_amount'))['total'] or 0
+
+        # Convert to list of dictionaries for JSON serialization
+        sales_profit_list = list(sales_profit_data)
+
+        return Response(sales_profit_list) # Return the data in a JSON response
+
+    except Exception as e:
+        logger.error(f"Error calculating sales and profit trend: {e}", exc_info=True)
+        return Response({"error": f"Failed to calculate sales and profit trend: {str(e)}"}, status=500)
