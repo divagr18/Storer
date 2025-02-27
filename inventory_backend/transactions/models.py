@@ -1,5 +1,4 @@
 from django.db import models
-from products.models import Product
 from suppliers.models import Supplier # Import supplier model
 
 class Transaction(models.Model):
