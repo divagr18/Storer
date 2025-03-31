@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    'drf_spectacular',
     
     # Custom apps
     'products',
@@ -51,8 +52,20 @@ INSTALLED_APPS = [
     'transactions',
     'users',
     'inventory_logs',
+    'ai_assistant',
 ]
-
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Storer Inventory API',
+    'DESCRIPTION': 'API for managing products, suppliers, transactions, and inventory, with an AI assistant.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+}
+dotenv_path = BASE_DIR / '.env' # Assumes .env is in inventory_backend\
+if dotenv_path.exists():
+    load_dotenv(dotenv_path=dotenv_path)
+else:
+    # Optionally print a warning if .env is missing, especially for required keys like OPENAI_API_KEY
+    print(f"Warning: .env file not found at {dotenv_path}. Environment variables may not be loaded.")
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
@@ -62,6 +75,7 @@ REST_FRAMEWORK = {
     ],
 
     'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 from datetime import timedelta
 
@@ -82,7 +96,8 @@ MIDDLEWARE = [
 ]
 CORS_ORIGIN_ALLOW_ALL = True
 ROOT_URLCONF = 'inventory_backend.urls'
-
+OPENAI_CHAT_MODEL = 'gpt-4o-mini'
+OPENAPI_SCHEMA_FILENAME = 'schema.yaml'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -161,21 +176,55 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+
+    # --- DEFINE FORMATTERS FIRST ---
+    'formatters': {
+        'verbose': {
+            # Example format: LEVELNAME TIMESTAMP MODULE PROCESS_ID THREAD_ID MESSAGE
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            # Example format: LEVELNAME MESSAGE
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    # --- END FORMATTERS ---
+
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
+            # --- Assign a formatter to the console handler ---
+            'formatter': 'simple', # Use the 'simple' formatter defined above
         },
     },
     'loggers': {
+        # Django's default logger - good to keep usually
+        'django': {
+            'handlers': ['console'],
+            'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO'), # Configurable level
+            'propagate': False, # Prevent django logs from going to root logger if not needed
+        },
         'products.views': { # Logger for your products.views module
-            'handlers': ['console'],
-            'level': 'INFO', # Or 'DEBUG' for more detailed logging during debugging
+            'handlers': ['console'], # Sends to console via 'simple' formatter
+            'level': 'INFO',
+            'propagate': True, # Allows messages to potentially go to other handlers if needed
+        },
+        'products.forecast': { # Logger for your products.forecast module
+            'handlers': ['console'], # Sends to console via 'simple' formatter
+            'level': 'INFO',
             'propagate': True,
         },
-        'products.forecast': { # Logger for your products.forecast module (optional, if you want to log from forecast.py as well)
-            'handlers': ['console'],
-            'level': 'INFO', # Or 'DEBUG'
-            'propagate': True,
+        'ai_assistant': { # Your specific logger
+            'handlers': ['console'], # Sends to console (simple) and file (verbose)
+            'level': 'DEBUG', # Captures DEBUG level and above for this logger
+            'propagate': False, # Prevent ai_assistant logs propagating further up
         },
+        # Optional: Define a root logger to catch anything not explicitly handled
+        # '': { # Root logger
+        #     'handlers': ['console'],
+        #     'level': 'WARNING', # Catch WARNING and above from libraries etc.
+        # },
     },
 }

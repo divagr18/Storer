@@ -17,9 +17,52 @@ from transactions.models import Transaction
 from .forecast import forecast_demand_prophet, forecast_demand_arima, backtest_prophet_forecast,backtest_arima_forecast # Import both forecast functions # Updated import
 import pandas as pd
 import logging
-
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
 logger = logging.getLogger(__name__)
 
+ForecastItemSchema = {
+    'type': 'object',
+    'properties': {
+        'ds': {'type': 'string', 'format': 'date-time'}, # Or 'date' if only date part
+        'yhat': {'type': 'number', 'format': 'float'},
+        'yhat_lower': {'type': 'number', 'format': 'float'},
+        'yhat_upper': {'type': 'number', 'format': 'float'},
+        # Add other fields returned by your forecast functions if necessary
+    }
+}
+
+MetricsSchema = {
+    'type': 'object',
+    'properties': {
+        'mae': {'type': 'number', 'format': 'float'},
+        'rmse': {'type': 'number', 'format': 'float'},
+        # Add other metrics like mape etc. if returned
+    }
+}
+@extend_schema( # <<< Add decorator
+    responses={
+        200: { # Define structure for successful response
+            'type': 'object',
+            'properties': {
+                'product_details': {
+                    'type': 'object',
+                    'properties': {
+                        'name': {'type': 'string'},
+                        'description': {'type': 'string'}
+                    }
+                },
+                'forecast': {
+                    'type': 'array',
+                    'items': ForecastItemSchema
+                }
+            }
+        },
+        404: OpenApiTypes.OBJECT, # Indicate other possible responses
+        500: OpenApiTypes.OBJECT,
+    },
+    description='Retrieves a demand forecast for a product using Prophet.' # Add description
+)
 @api_view(['GET'])
 def get_demand_forecast(request, product_sku, horizon):
     """
@@ -60,6 +103,42 @@ def get_demand_forecast(request, product_sku, horizon):
     except Exception as e:  # Catch any unexpected errors
         logger.exception("An unexpected error occurred during the forecasting process.", exc_info=True)  # Log the full traceback
         return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+@extend_schema( # <<< Add decorator
+    parameters=[ # Define path and query parameters
+        OpenApiParameter('product_sku', OpenApiTypes.STR, OpenApiParameter.PATH, required=True, description='SKU of the product'),
+        OpenApiParameter('horizon', OpenApiTypes.INT, OpenApiParameter.PATH, required=True, description='Forecast horizon in periods (e.g., days)'),
+        OpenApiParameter('arima_order_str', OpenApiTypes.STR, OpenApiParameter.QUERY, required=False, description='Optional ARIMA order as p,d,q (e.g., \'5,1,0\')'),
+    ],
+    responses={
+        200: { # Define structure for successful response
+            'type': 'object',
+            'properties': {
+                'product_details': {
+                    'type': 'object',
+                    'properties': {
+                        'name': {'type': 'string'},
+                        'description': {'type': 'string'}
+                    }
+                },
+                'forecast': {
+                    'type': 'array',
+                    'items': ForecastItemSchema
+                },
+                'arima_order_used': {
+                    'type': 'array',
+                    'items': {'type': 'integer'},
+                    'example': [5, 1, 0]
+                }
+            }
+        },
+        400: OpenApiTypes.OBJECT,
+        404: OpenApiTypes.OBJECT,
+        500: OpenApiTypes.OBJECT,
+    },
+    description='Retrieves a demand forecast for a product using ARIMA.' # Add description
+)
+
 @api_view(['GET'])
 def get_arima_demand_forecast(request, product_sku, horizon, arima_order_str=None):
     """
@@ -112,6 +191,31 @@ def get_arima_demand_forecast(request, product_sku, horizon, arima_order_str=Non
     except Exception as e:
         logger.error(f"ARIMA forecasting failed for SKU {product_sku}, order: {arima_order}. Error: {e}", exc_info=True) # Log full exception # Log full exception
         return Response({"error": f"ARIMA forecasting failed: {str(e)}"}, status=500)
+@extend_schema( # <<< Add decorator
+    responses={
+        200: { # Define structure for successful response
+            'type': 'object',
+            'properties': {
+                'product_details': {
+                    'type': 'object',
+                    'properties': {
+                        'name': {'type': 'string'},
+                        'description': {'type': 'string'}
+                    }
+                },
+                'metrics': MetricsSchema,
+                'forecast': {
+                    'type': 'array',
+                    'items': ForecastItemSchema
+                }
+            }
+        },
+        400: OpenApiTypes.OBJECT,
+        404: OpenApiTypes.OBJECT,
+        500: OpenApiTypes.OBJECT,
+    },
+    description='Performs backtesting for Prophet demand forecast and retrieves evaluation metrics.' # Add description
+)
 @api_view(['GET'])
 def get_prophet_backtesting(request, product_sku, validation_horizon):
     """
@@ -168,7 +272,41 @@ def get_prophet_backtesting(request, product_sku, validation_horizon):
 
         return Response({"error": f"Prophet backtesting failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
+@extend_schema( # <<< Add decorator
+    parameters=[ # Define path and query parameters
+        OpenApiParameter('product_sku', OpenApiTypes.STR, OpenApiParameter.PATH, required=True, description='SKU of the product'),
+        OpenApiParameter('validation_horizon', OpenApiTypes.INT, OpenApiParameter.PATH, required=True, description='Backtesting horizon in periods (e.g., days)'),
+        OpenApiParameter('arima_order_str', OpenApiTypes.STR, OpenApiParameter.QUERY, required=False, description='Optional ARIMA order as p,d,q (e.g., \'5,1,0\')'),
+    ],
+    responses={
+        200: { # Define structure for successful response
+            'type': 'object',
+            'properties': {
+                'product_details': {
+                    'type': 'object',
+                    'properties': {
+                        'name': {'type': 'string'},
+                        'description': {'type': 'string'}
+                    }
+                },
+                'metrics': MetricsSchema,
+                'forecast': {
+                    'type': 'array',
+                    'items': ForecastItemSchema
+                },
+                'arima_order_used': {
+                    'type': 'array',
+                    'items': {'type': 'integer'},
+                    'example': [5, 1, 0]
+                }
+            }
+        },
+        400: OpenApiTypes.OBJECT,
+        404: OpenApiTypes.OBJECT,
+        500: OpenApiTypes.OBJECT,
+    },
+    description='Performs backtesting for ARIMA demand forecast and retrieves evaluation metrics.' # Add description
+)
 @api_view(['GET'])
 def get_arima_backtesting(request, product_sku, validation_horizon, arima_order_str=None): # New ARIMA Backtesting View
     """
@@ -232,7 +370,31 @@ def get_arima_backtesting(request, product_sku, validation_horizon, arima_order_
         logger.error(f"ARIMA backtesting API error for SKU {product_sku}, horizon: {validation_horizon}, order: {arima_order}. Error: {e}", exc_info=True)
         return Response({"error": f"ARIMA backtesting failed: {str(e)}"}, status=500)
     
-    
+@extend_schema( # <<< Add decorator
+    parameters=[ # Define optional path parameter
+        OpenApiParameter('product_sku', OpenApiTypes.STR, OpenApiParameter.PATH, required=False, description='Optional SKU to filter metrics for a specific product.'),
+    ],
+    responses={
+        200: { # Define structure for successful response
+            'type': 'object',
+            'properties': {
+                'total_sales': {'type': 'number', 'format': 'float'},
+                'total_profit': {'type': 'number', 'format': 'float'},
+                'total_transactions': {'type': 'integer'},
+                'total_products': {'type': 'integer'},
+            },
+            'example': { # Add an example
+                 "total_sales": 12550.75,
+                 "total_profit": 3150.50,
+                 "total_transactions": 450,
+                 "total_products": 58
+             }
+        },
+        404: OpenApiTypes.OBJECT, # If product_sku is provided but not found
+        500: OpenApiTypes.OBJECT,
+    },
+    description='Retrieves dashboard metrics (Total Sales, Profit, Transactions, Products), optionally filtered by product SKU.' # Add description
+)    
 @api_view(['GET'])
 def get_dashboard_metrics(request, product_sku=None): # Make product_sku optional
     """
@@ -278,7 +440,31 @@ def get_dashboard_metrics(request, product_sku=None): # Make product_sku optiona
     except Exception as e:
         logger.error(f"Error calculating dashboard metrics: {e}", exc_info=True)
         return Response({"error": f"Failed to calculate dashboard metrics: {str(e)}"}, status=500)
-    
+@extend_schema( # <<< Add decorator
+    parameters=[ # Define optional path parameter
+        OpenApiParameter('product_sku', OpenApiTypes.STR, OpenApiParameter.PATH, required=False, description='Optional SKU to filter trend for a specific product.'),
+    ],
+    responses={
+        200: { # Define structure for successful response - array of objects
+            'type': 'array',
+            'items': {
+                'type': 'object',
+                'properties': {
+                    'month': {'type': 'string', 'format': 'date'}, # Or date-time if time part is relevant
+                    'total_sales': {'type': 'number', 'format': 'float'},
+                    'total_profit': {'type': 'number', 'format': 'float'},
+                }
+            },
+            'example': [ # Add an example
+                {"month": "2024-01-01", "total_sales": 5000.00, "total_profit": 1200.50},
+                {"month": "2024-02-01", "total_sales": 7550.75, "total_profit": 1950.00}
+            ]
+        },
+        404: OpenApiTypes.OBJECT, # If product_sku is provided but not found
+        500: OpenApiTypes.OBJECT,
+    },
+    description='Retrieves monthly sales and profit trend data, optionally filtered by product SKU.' # Add description
+)    
 @api_view(['GET'])
 def get_sales_profit_trend(request, product_sku=None):
     """

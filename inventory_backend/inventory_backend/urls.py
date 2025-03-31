@@ -5,9 +5,11 @@ from products.views import ProductViewSet
 from transactions.views import TransactionViewSet
 from suppliers.views import SupplierViewSet
 from users.views import UserViewSet
+import ai_assistant.urls
 from inventory_logs.views import InventoryViewSet
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from products.views import get_demand_forecast, get_arima_demand_forecast, get_prophet_backtesting, get_arima_backtesting, get_dashboard_metrics, get_sales_profit_trend
+from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 # Initialize the router for REST API routes
 router = routers.DefaultRouter()
 
@@ -34,6 +36,11 @@ urlpatterns = [
     path('api/products/<str:product_sku>/backtest/prophet/<int:validation_horizon>/', get_prophet_backtesting, name='product_prophet_backtest'),
     path('api/products/<str:product_sku>/backtest/arima/<int:validation_horizon>/', get_arima_backtesting, name='product_arima_backtest'),
     path('api/metrics/', get_dashboard_metrics, name='dashboard_metrics'),
-    path('api/sales_profit_trend/', get_sales_profit_trend, name='sales_profit_trend'),  # New URL
+    path('api/sales_profit_trend/', get_sales_profit_trend, name='sales_profit_trend'),
+    path('api/ai/', include('ai_assistant.urls')),  # New URL
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'), # Serves the schema file (e.g., schema.yaml/.json)
+    # Optional UI:
+    path('api/schema/swagger-ui/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('api/schema/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
     
 ]
