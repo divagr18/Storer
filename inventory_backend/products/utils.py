@@ -1,16 +1,15 @@
-# products/utils.py
-
 from typing import TYPE_CHECKING
 from datetime import date, timedelta
 from django.utils import timezone
 import numpy as np
 from transactions.models import Transaction
 from suppliers.models import Supplier
-
 if TYPE_CHECKING:
     from products.models import Product
 
-def calculate_reorder_point(product: 'Product', service_level: float = 0.95) -> int:
+
+def calculate_reorder_point(product: 'Product', service_level: float=0.95
+    ) ->int:
     """
     Calculates the reorder point for a product.
 
@@ -21,56 +20,44 @@ def calculate_reorder_point(product: 'Product', service_level: float = 0.95) -> 
     Returns:
         The calculated reorder point (integer).
     """
-    # Retrieve lead time from the Supplier (or use a default if no supplier)
-    lead_time_days = product.supplier.lead_time_days if product.supplier else 7  # Use 7 as a default if no supplier
-
-    # Get forecast for the lead time
+    lead_time_days = product.supplier.lead_time_days if product.supplier else 7
     forecasted_demand = get_forecasted_demand(product, lead_time_days)
-
-    # Calculate safety stock (simplified - use a more sophisticated approach later)
     demand_std_dev = get_demand_std_dev(product, lead_time_days)
-
     from scipy.stats import norm
     z_score = norm.ppf(service_level)
-    safety_stock = z_score * demand_std_dev  # A SIMPLE approach - improve this later
-
+    safety_stock = z_score * demand_std_dev
     reorder_point = forecasted_demand + safety_stock
-    return max(0, int(reorder_point))  # Ensure ROP is not negative
+    return max(0, int(reorder_point))
 
-def get_forecasted_demand(product: 'Product', lead_time_days: int) -> float:
-    """
-    Placeholder for fetching the demand forecast for the lead time. Replace this with your actual forecast logic
-    using your existing Prophet or ARIMA code.
 
-    Args:
-        product: The Product object.
-        lead_time_days: The lead time in days.
+def get_forecasted_demand(product: 'Product', lead_time_days: int) ->float:
+    """Fetches the forecasted demand for a given product over a specified lead time using an external forecasting API.
 
-    Returns:
-        The forecasted demand (float).
-    """
-    # Implement logic to fetch from ARIMA or Prophet
-    # This example uses ARIMA
+Args:
+    product (Product): The product for which the demand forecast is requested. Must have a 'sku' attribute.
+    lead_time_days (int): The lead time in days over which to forecast demand.
 
+Returns:
+    float: The total forecasted demand for the product over the lead time. Returns 0 if the forecast cannot be retrieved or parsed."""
     import requests
     try:
-        forecast_api_url = f"http://localhost:8000/api/products/{product.sku}/forecast/arima/{lead_time_days}/"  # Change to your actual URL
-
+        forecast_api_url = (
+            f'http://localhost:8000/api/products/{product.sku}/forecast/arima/{lead_time_days}/'
+            )
         response = requests.get(forecast_api_url)
-        response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+        response.raise_for_status()
         forecast_data = response.json()
         total_demand = sum(item['yhat'] for item in forecast_data['forecast'])
-
         return total_demand
-
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching forecast: {e}")
+        print(f'Error fetching forecast: {e}')
         return 0
     except KeyError as e:
-        print(f"KeyError in parsing forecast API response {e}")
+        print(f'KeyError in parsing forecast API response {e}')
         return 0
 
-def get_demand_std_dev(product: 'Product', lead_time_days: int) -> float:
+
+def get_demand_std_dev(product: 'Product', lead_time_days: int) ->float:
     """
     Placeholder for calculating the standard deviation of demand based on historical data.
 
@@ -81,17 +68,13 @@ def get_demand_std_dev(product: 'Product', lead_time_days: int) -> float:
     Returns:
         The standard deviation of demand (float).
     """
-    # Fetch historical sales data for the product for the last 3 months
     end_date = timezone.now()
     start_date = end_date - timedelta(days=90)
-
-    sales_data = Transaction.objects.filter(
-        product=product,
-        transaction_date__range=[start_date, end_date]
-    ).values_list('quantity', flat=True)
-
+    sales_data = Transaction.objects.filter(product=product,
+        transaction_date__range=[start_date, end_date]).values_list('quantity',
+        flat=True)
     if sales_data:
         demand_std_dev = np.std(sales_data)
         return demand_std_dev
     else:
-        return 5  # Simplified placeholder - Replace with actual std dev calculation
+        return 5
