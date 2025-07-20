@@ -10,11 +10,11 @@ class Profile(models.Model):
     def __str__(self):
         """Return the username of the associated user.
 
-        This string representation method is used to provide a readable identifier for instances
-        of the user-related model by returning the username of the linked user object.
+        Provides a readable string representation for the user-related model instance by returning
+        the username attribute of the linked user object.
 
         Returns:
-            str: The username of the user."""
+            str: The username of the associated user."""
         return self.user.username
 
     class Meta:
