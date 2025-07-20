@@ -35,10 +35,13 @@ def fetch_products():
 
 
 def display_product_list():
-    """Displays the current list of products in a Streamlit container.
+    """Display the current list of products in a Streamlit container.
 
-    Creates a container in the Streamlit app with a subheader "Current Products"
-    and retrieves the product list by calling `fetch_products()`.
+    Creates a Streamlit container with a subheader titled "Current Products" and populates it
+    by calling the `fetch_products()` function to retrieve and display the product data.
+
+    Args:
+        None
 
     Returns:
         None"""
