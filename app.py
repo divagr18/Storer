@@ -9,12 +9,12 @@ st.title("📦 Inventory Management System")
 
 
 def fetch_products():
-    """Fetches product data from the API endpoint specified by API_BASE_URL.
+    """Fetches product data from the configured API endpoint.
 
-    Makes a GET request to the API and returns the JSON-decoded response containing product information. If the request is unsuccessful (i.e., status code is not 200), an error message is displayed using Streamlit and an empty list is returned.
+    Makes a GET request to the URL defined by API_BASE_URL and returns the JSON-decoded product information. If the request fails (status code other than 200), displays an error message using Streamlit and returns an empty list.
 
     Returns:
-        list or dict: The product data retrieved from the API, or an empty list if the request fails."""
+        list or dict: The JSON-parsed product data on success, or an empty list on failure."""
     response = requests.get(API_BASE_URL)
     if response.status_code == 200:
         return response.json()
@@ -24,18 +24,18 @@ def fetch_products():
 
 
 def display_products(products):
-    """Displays a list of products in an interactive data table and issues stock level warnings.
+    """Displays a list of products in an interactive data table and issues stock level warnings using Streamlit.
 
     Args:
-        products (list of dict): List of product dictionaries. Each dictionary must contain the keys
+        products (list of dict): List of product dictionaries. Each dictionary must include the keys
             'id', 'name', 'description', 'price', 'stock_level', and 'min_stock_level'.
 
     Returns:
         None
 
-    This function uses Streamlit to display the product information in a tabular format. It also
-    generates warning messages for any products whose current stock level is less than or equal to
-    their minimum stock threshold."""
+    This function presents the product information in a tabular format within a Streamlit app.
+    It also displays warning messages for any products whose stock level is at or below their defined minimum stock threshold.
+    If the product list is empty, a warning indicating no products are available is shown."""
     if not products:
         st.warning("No products available.")
         return
@@ -52,11 +52,11 @@ def display_products(products):
 
 
 def create_product():
-    """Displays a form for inputting new product details and submits them to the backend API.
+    """Displays a form to input new product details and submits them to the backend API.
 
-    When the form is submitted, sends a POST request with the product data to the configured API endpoint (`API_BASE_URL`). On success (HTTP 201), shows a success message and updates `st.session_state["view_mode"]` to "View Products"; on failure, displays an error message.
+    When the form is submitted, sends a POST request with the product data to the API endpoint defined by `API_BASE_URL`. If the response status code is 201, shows a success message and updates `st.session_state["view_mode"]` to "View Products". Otherwise, displays an error message.
 
-    Uses Streamlit for UI components and relies on the global variables `API_BASE_URL` and `st.session_state`.
+    Uses Streamlit UI components and depends on the global variables `API_BASE_URL` and `st.session_state`.
 
     Args:
         None
@@ -87,11 +87,16 @@ def create_product():
 
 
 def update_product():
-    """Displays a Streamlit interface for selecting and updating an existing product's details.
+    """Displays a Streamlit interface to select and update an existing product's details.
 
-    Retrieves all products using `fetch_products()`, lets the user select one via a selectbox, and fetches its current details from the backend API. Presents a form pre-populated with product info (name, description, price, stock level, and minimum stock level) for editing. On form submission, sends an update request to the API. Displays success or error messages based on the update outcome and updates the session state's view mode upon success.
+    Fetches all products using `fetch_products()`, allows the user to choose one via a selectbox,
+    and retrieves its current information from the backend API. It then presents a form
+    pre-filled with the product's name, description, price, stock level, and minimum stock level
+    for editing. Upon form submission, the updated data is sent to the API using an HTTP PUT request.
+    Displays success or error messages based on the API response and updates the session state's
+    view mode to "View Products" on successful update.
 
-    Uses `API_BASE_URL` for API endpoints and `requests` for HTTP calls.
+    Uses `API_BASE_URL` for constructing API endpoints and `requests` for HTTP communication.
 
     Returns:
         None"""
@@ -137,9 +142,9 @@ def update_product():
 
 
 def delete_product():
-    """Prompts the user to select and delete a product from the current product list.
+    """Prompts the user to select and delete a product from the current product list in the Streamlit app.
 
-    Fetches products and displays them for selection in a dropdown. Allows the user to confirm deletion with a button click. Shows a warning if no products exist. On successful deletion, updates the session state to switch the view mode to "View Products"; otherwise, displays an error message.
+    Fetches the list of products and displays them in a dropdown menu for user selection. If no products are available, shows a warning message. Upon user confirmation via a delete button, sends a DELETE request to the API to remove the selected product. If deletion is successful, updates the app state to switch the view mode to "View Products" and displays a success message; otherwise, shows an error notification.
 
     Returns:
         None"""
